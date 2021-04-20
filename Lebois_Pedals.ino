@@ -12,9 +12,9 @@ int AcceleratorPin = A1;
 int BrakePin = A2;
 int ClutchPin = A3;
 
-int minAccelerator = 0;
-int maxAccelerator = 515;
-int minBrake = 100 ;
+int minAccelerator = 50;
+int maxAccelerator = 500;
+int minBrake = 100;
 int maxBrake = 500;
 int minClutch = 0;
 int maxClutch = 600;
