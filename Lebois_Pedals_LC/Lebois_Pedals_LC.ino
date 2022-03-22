@@ -7,7 +7,8 @@
 // comment either out to disable || Mettre en commentaire pour désactiver
 
 #include "Joystick.h"
-#include <HX711_ADC.h>
+//#include <HX711_ADC.h>
+#include <HX711.h> //https://github.com/bogde/HX711
 
 #define USE_ACCEL
 #define USE_BRAKE
@@ -23,14 +24,15 @@
 
 int minAccelerator = 560;
 int maxAccelerator = 930;
-int minBrake = 0;
-int maxBrake = 450;
+//int minBrake = 0;
+//int maxBrake = 450;
 int minClutch = 90;
 int maxClutch = 490;
 int minHandbrake = 100;
 int maxHandbrake = 300;
 int digitalHandbrakeSwitch = 200;
 
+long rawReadBrake;
 int lastAcceleratorState ;
 int lastBrakeState;
 int lastClutchState;
@@ -42,8 +44,8 @@ int currentHandbrakeState;
 
 int minAcceleratorRead = 1023;
 int maxAcceleratorRead = 0;
-int minBrakeRead = 1023 ;
-int maxBrakeRead = 0;
+int minBrakeRead = 32767 ;
+int maxBrakeRead = -32768;
 int minClutchRead = 1023;
 int maxClutchRead = 0;
 int minHandbrakeRead = 1023;
@@ -59,14 +61,28 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                    false, false, true, true, false);
 
 //pins:
-const int HX711_dout = 1; //mcu > HX711 dout pin
-const int HX711_sck = 0; //mcu > HX711 sck pin                   
+//const int HX711_dout = 1; //mcu > HX711 dout pin
+//const int HX711_sck = 0; //mcu > HX711 sck pin                   
 
-//HX711 constructor:
-HX711_ADC LoadCell(HX711_dout, HX711_sck);
+//HX711_ADC constructor:
+//HX711_ADC LoadCell(HX711_dout, HX711_sck);
+
+//HX711 declarations
+HX711 scale;
+const int doutPin = 1;
+const int sckPin = 0;
 
 unsigned long t = 0;
 float i = 0.0f;
+
+long maxBrake = -400000;
+long minBrake = 400000;
+int coeff = (maxBrake-minBrake)/(65536);
+int myMap(long i) {
+  long mymap = (i-minBrake)/coeff-32768;
+  if (mymap==32768){mymap -=1;}
+ return mymap;
+}
 
 void setup() {
 // put your setup code here, to run once:
@@ -76,16 +92,17 @@ void setup() {
 #endif
 // setup Joystick
   Joystick.setRxAxisRange(minAccelerator, maxAccelerator);
-  Joystick.setBrakeRange(minBrake, maxBrake);
+  Joystick.setBrakeRange(-32768, 32767);
   Joystick.setXAxisRange(minClutch, maxClutch);
   Joystick.setYAxisRange(minHandbrake, maxHandbrake);
   Joystick.begin();
   lastAcceleratorState = analogRead(AcceleratorPin);
-  lastBrakeState = analogRead(BrakePin);
+  //lastBrakeState = analogRead(BrakePin);
   lastClutchState = analogRead(ClutchPin);
   lastHandbrakeState = analogRead(HandbrakePin);
   
-// setup scale
+// setup scale HX711_ADC
+/*
   LoadCell.begin();
   LoadCell.setReverseOutput(); //uncomment to turn a negative output value to positive
   float calibrationValue; // calibration value (see example file "Calibration.ino")
@@ -101,7 +118,10 @@ void setup() {
     LoadCell.setCalFactor(calibrationValue); // set calibration value (float)
     Serial.println("Startup is complete");
   }
+*/
 
+// setup scale HX711
+  scale.begin(doutPin, sckPin);
   delay(1000); //safety delay to flash the code
 }
 
@@ -135,7 +155,7 @@ void loop() {
 #endif
 
 #ifdef USE_BRAKE
-
+/* HX711_ADC scale too slow 
   static boolean newDataReady = 0;
   const int serialPrintInterval = 0; //increase value to slow down serial print activity
 
@@ -152,8 +172,11 @@ void loop() {
       t = millis();
     }
   }
+*/
 
-  currentBrakeState = (int)i;
+rawReadBrake = scale.read();
+int currentBrakeState = (int) myMap(rawReadBrake);
+
   if (currentBrakeState != lastBrakeState)
   {
     Joystick.setBrake(currentBrakeState);
@@ -163,6 +186,10 @@ void loop() {
   minBrakeRead = min(minBrakeRead, currentBrakeState);
   maxBrakeRead = max(maxBrakeRead, currentBrakeState);
   if (sendDebug) {
+    Serial.print(". RawReadBrake is calibrated :  ");
+    Serial.print(rawReadBrake);
+    Serial.print(". Scale.read() is : ");
+    Serial.println(scale.get_units());
     Serial.print("       Brake : ");
     Serial.print(currentBrakeState);
     Serial.print(". Min is : ");
